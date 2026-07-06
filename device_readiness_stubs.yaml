@@ -1,0 +1,70 @@
+# ============================================================
+# OPTIONAL — device-readiness stubs.
+#
+# jellyfin_ensure_player (in jellyfin_play.yaml) calls the scripts below to make
+# sure your playback target is powered on and Jellyfin is open BEFORE playing.
+# These are inherently specific to YOUR hardware, so the main package does not
+# define them.
+#
+# This file provides no-op stubs that simply report ready = true, so the package
+# loads and playback works when your device is already on. Replace each stub's
+# sequence with real logic (Wake-on-LAN, turning on a TV, launching a browser,
+# waiting for the player to appear, etc.) for full automation.
+#
+# If your play flow doesn't need a readiness step at all, you can instead delete
+# the jellyfin_ensure_player call from jellyfin_play_episode_custom_card and skip
+# this file entirely.
+# ============================================================
+
+script:
+
+  # --- "Brave on PC" branch ---
+  ensure_pc_is_on:
+    alias: "Ensure PC is on (STUB — replace me)"
+    sequence:
+      - variables:
+          result:
+            ready: true
+      - stop: "stub"
+        response_variable: result
+
+  ensure_speakers_are_on:
+    alias: "Ensure speakers are on (STUB — replace me)"
+    sequence: []
+
+  jellyfin_open_browser:
+    alias: "Open Jellyfin in browser (STUB — replace me)"
+    sequence:
+      - variables:
+          result:
+            ready: true
+      - stop: "stub"
+        response_variable: result
+
+  ensure_pc_player_is_on:
+    alias: "Ensure PC media player is on (STUB — replace me)"
+    sequence:
+      - variables:
+          result:
+            ready: true
+      - stop: "stub"
+        response_variable: result
+
+  # --- "Samsung TV" branch ---
+  turn_on_samsung_tv:
+    alias: "Turn on Samsung TV (STUB — replace me)"
+    sequence:
+      - variables:
+          result:
+            ready: true
+      - stop: "stub"
+        response_variable: result
+
+  samsung_tv_launch_jellyfin:
+    alias: "Launch Jellyfin on Samsung TV (STUB — replace me)"
+    sequence:
+      - variables:
+          result:
+            ready: true
+      - stop: "stub"
+        response_variable: result

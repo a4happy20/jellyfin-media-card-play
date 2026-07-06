@@ -1,0 +1,138 @@
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------INPUT SELECT---------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+input_select:
+  jellyfin_media_player:
+    name: Jellyfin Media Player
+    options:
+      - "media_player.jellyfin_brave"
+      - "media_player.jellyfin_samsung_smart_tv"
+    # add more players here as options
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------INPUT NUMBER---------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+input_number:
+  jellyfin_volume:
+    name: Jellyfin Volume
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: slider
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------SCRIPT---------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+script:
+
+# ==============================================================================
+# Here we check if the media player is ready.
+# If not ready we start it. Then we wait until it's ready.
+# If already ready, we continue.
+# We also do different things depending on the selected/specified media player.
+# ==============================================================================
+
+  jellyfin_ensure_player:
+    alias: "Jellyfin Ensure Player"
+    sequence:
+      - variables:
+          player: "{{ states('input_select.jellyfin_media_player') }}"
+      - choose:
+          - conditions: "{{ player == 'media_player.jellyfin_brave' }}"
+            sequence:
+              - action: script.ensure_pc_is_on
+                response_variable: pc
+              - action: script.ensure_speakers_are_on
+              - action: script.jellyfin_open_browser
+                response_variable: br
+              - action: script.ensure_pc_player_is_on
+                response_variable: pc_player
+              - variables:
+                  result:
+                    ready: "{{ (pc.ready | default(false)) and (br.ready | default(false)) and (pc_player.ready | default(false)) }}"
+          - conditions: "{{ player == 'media_player.jellyfin_samsung_smart_tv' }}"
+            sequence:
+              - action: script.turn_on_samsung_tv
+                response_variable: tv
+              - action: script.samsung_tv_launch_jellyfin
+                response_variable: jf
+              - variables:
+                  result:
+                    ready: "{{ (tv.ready | default(false)) and (jf.ready | default(false)) }}"
+        default:
+          - variables:
+              result:
+                ready: false
+      - stop: "done"
+        response_variable: result
+
+
+# ============================================================
+# --- Play an episode by id ---
+# ============================================================
+  jellyfin_play_episode:
+    alias: "Jellyfin Play Episode"
+    fields:
+      episode_id:
+        required: true
+      entity_id:
+        description: "Target media player. Defaults to the dropdown."
+        required: false
+      volume:
+        description: "Volume 0-100. Defaults to the slider."
+        required: false
+    sequence:
+      - variables:
+          player: "{{ entity_id if entity_id is defined and entity_id else states('input_select.jellyfin_media_player') }}"
+          vol: >-
+            {{ (volume if volume is defined and volume is not none
+                else states('input_number.jellyfin_volume')) | float(0) }}
+      - action: media_player.play_media
+        continue_on_error: true
+        target:
+          entity_id: "{{ player }}"
+        data:
+          media_content_id: "{{ episode_id }}"
+          media_content_type: episode
+      - delay: "00:00:05"
+      - action: media_player.volume_set
+        target:
+          entity_id: "{{ player }}"
+        data:
+          volume_level: "{{ (vol / 100) | float | round(2) }}"
+      - delay: "00:00:30"
+      - if:
+          - condition: template
+            value_template: "{{ states(player) not in ['playing','paused'] }}"
+        then:
+          - action: notify.mobile_app_YOUR_PHONE
+            data:
+              message: "Jellyfin: playback didn't start."
+
+
+  # ======================================================================================
+  # ORCHESTRATOR: jellyfin-media-card - Play the episode from the custom card
+  # ======================================================================================
+  jellyfin_play_episode_custom_card:
+    alias: "Jellyfin Play Episode (custom card)"
+    fields:
+      episode_id:
+        required: true
+    sequence:
+      - action: script.jellyfin_ensure_player
+        response_variable: rdy
+      - if: "{{ not (rdy.ready | default(false)) }}"
+        then:
+          - action: notify.mobile_app_YOUR_PHONE
+            data:
+              message: "Jellyfin: player not ready."
+          - stop: "player not ready"
+      - action: script.jellyfin_play_episode
+        data:
+          episode_id: "{{ episode_id }}"

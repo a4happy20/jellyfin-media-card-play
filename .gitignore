@@ -1,0 +1,9 @@
+# Never commit real secrets
+secrets.yaml
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

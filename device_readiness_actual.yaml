@@ -1,0 +1,206 @@
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------REST COMMAND---------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+# secrets.yaml = samsung_tv_launch_jellyfin: http://samsung_tv_ip_address:port/api/v2/applications/AprZAARz4r.Jellyfin
+
+rest_command:
+  samsung_tv_launch_jellyfin:
+    url: !secret samsung_tv_launch_jellyfin
+    method: POST
+
+  jellyfin_sessions:
+    url: "http://YOUR_JELLYFIN_HOST:8096/Sessions?api_key={{ api_key }}"
+    method: GET
+    content_type: application/json
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------SCRIPTS--------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+script:
+  # --- Ensure the PC is powered on ---
+  ensure_pc_is_on:
+    alias: "Ensure PC is On"
+    mode: parallel
+    max: 10
+    sequence:
+      - if:
+          - condition: state
+            entity_id: switch.my_computer
+            state: "off"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.my_computer
+          - wait_template: "{{ is_state('switch.my_computer','on') }}"
+            timeout: "00:05:00"
+            continue_on_timeout: true
+      - variables:
+          ok: "{{ is_state('switch.my_computer','on') }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7
+            data:
+              message: "PC didn't turn on in time."
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+
+  # --- Ensure the hass.agent media_player is available ---
+  ensure_pc_player_is_on:
+    alias: "Ensure PC Media Player is On"
+    mode: parallel
+    max: 10
+    sequence:
+      - variables:
+          player: "media_player.a4happy20"
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ states(player) in ['unavailable','unknown'] }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 3 }}"
+          sequence:
+            - action: script.nothing
+            - wait_template: "{{ states(player) not in ['unavailable','unknown'] }}"
+              timeout: "00:00:30"
+              continue_on_timeout: true
+      - variables:
+          ok: "{{ states(player) not in ['unavailable','unknown'] }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7
+            data:
+              message: "My Computer: media player never became available."
+      - delay: "00:00:03"
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+
+
+  # --- Ensure the speakers are powered on ---
+  ensure_speakers_are_on:
+    alias: "Ensure Speakers are On"
+    mode: parallel
+    max: 10
+    sequence:
+      - if:
+          - condition: state
+            entity_id: switch.speakers
+            state: "off"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.speakers
+          - wait_template: "{{ is_state('switch.speakers','on') }}"
+            timeout: "00:01:00"
+            continue_on_timeout: true
+      - variables:
+          ok: "{{ is_state('switch.speakers','on') }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7
+            data:
+              message: "Speakers didn't turn on in time."
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+
+
+  # --- Start Samsung TV and wait for the session ---
+  turn_on_samsung_tv:
+    alias: Turn on Samsung TV
+    mode: single
+    sequence:
+      - variables:
+          tv: media_player.samsung_au8000_65_tv_un65au8000fxza
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ states(tv) not in ['on'] }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 3 }}"
+          sequence:
+            - action: wake_on_lan.send_magic_packet
+              data:
+                mac: !secret samsung_tv_mac
+                broadcast_address: 255.255.255.255
+            - wait_template: "{{ states(tv) in ['on'] }}"
+              timeout: "00:00:30"
+              continue_on_timeout: true
+      - variables:
+          ok: "{{ states(tv) in ['on'] }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7
+            data:
+              message: "TV: never turned on."
+          - stop: "tv not ready"
+      - delay: "00:00:03"
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+
+
+  # --- Open Jellyfin on Samsung TV and wait for the session ---
+  samsung_tv_launch_jellyfin:
+    alias: "Samsung TV Launch Jellyfin"
+    sequence:
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ not (ok | default(false)) }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 3 }}"
+          sequence:
+            - action: rest_command.samsung_tv_launch_jellyfin
+            # poll Jellyfin /Sessions every 10s (up to 3x = ~30s) for the TV session
+            - repeat:
+                while:
+                  - condition: template
+                    value_template: "{{ not (ok | default(false)) }}"
+                  - condition: template
+                    value_template: "{{ repeat.index <= 3 }}"
+                sequence:
+                  - action: rest_command.jellyfin_sessions
+                    data:
+                      api_key: !secret jellyfin_api_key
+                    response_variable: session
+                  - variables:
+                      ok: >-
+                        {{ (session.content | default([])
+                            | selectattr('DeviceName','eq','Samsung Smart TV')
+                            | list | length) > 0 }}
+                  - if: "{{ not ok }}"
+                    then:
+                      - delay: "00:00:10"
+      - if:
+          - condition: template
+            value_template: "{{ not (ok | default(false)) }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7
+            data:
+              message: "Jellyfin: tv session never came online."
+      - variables:
+          result:
+            ready: "{{ ok | default(false) }}"
+      - stop: "done"
+        response_variable: result
