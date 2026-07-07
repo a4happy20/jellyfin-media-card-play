@@ -10,6 +10,8 @@ player and volume, and an orchestrator that makes sure the player is ready befor
 > packages feature. See the official docs:
 > **[Configuration packages — Home Assistant](https://www.home-assistant.io/docs/configuration/packages/)**.
 
+<br>
+
 Companion repos:
 - [jellyfin-media-card](https://github.com/a4happy20/jellyfin-media-card) — the Lovelace card
 - [jellyfin-media-card-sensors](https://github.com/a4happy20/jellyfin-media-card-sensors) — the data backend
@@ -22,11 +24,16 @@ Companion repos:
 
 The integration will provide the media player/s that we can use to send the media to.
 
+(Optional)
+[HASS.agent](https://www.hass-agent.io/2.2/getting-started/installation/)
+
+Can be used to control a windows pc.
+
 <br>
 
 ## The `play_script`
 
-The card's `play_script` option should point at:
+jellyfin-media-card `play_script` option should point at:
 
 ```
 script.jellyfin_play_episode_custom_card
@@ -107,8 +114,76 @@ A few values are specific to your hardware and must be changed:
 
 - **Media players** — edit the options in `input_select.jellyfin_media_player`
   (`media_player.jellyfin_brave`, `media_player.jellyfin_samsung_smart_tv` are examples).
+
+```yaml
+input_select:
+  jellyfin_media_player:
+    name: Jellyfin Media Player
+    options:
+      - "media_player.jellyfin_brave"        # your jellyfin media_player entity
+```
+
 - **Notification target** — replace `notify.mobile_app_YOUR_PHONE` (two places) with your
   own mobile app notify service, or remove those notify steps.
+
+```yaml
+script:
+  jellyfin_play_episode_custom_card:
+    alias: "Jellyfin Play Episode (custom card)"
+    fields:
+      episode_id:
+        required: true
+    sequence:
+      - action: script.jellyfin_ensure_player
+        response_variable: rdy
+      - if: "{{ not (rdy.ready | default(false)) }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7        # your mobile device to send a notification
+            data:
+              message: "Jellyfin: player not ready."
+          - stop: "player not ready"
+      - action: script.jellyfin_play_episode
+        data:
+          episode_id: "{{ episode_id }}"
+```
+```yaml
+script:
+  jellyfin_open_browser:
+    sequence:
+      - variables:
+          player: "{{ states('input_select.jellyfin_media_player') }}"
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ states(player) in ['unavailable','unknown'] }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 3 }}"
+          sequence:
+            - action: mqtt.publish
+              data:
+                topic: "homeassistant/button/A4HAPPY20/jellyfin_start_brave/action"
+                payload: 'cmd /c start "" "http://YOUR_JELLYFIN_HOST:8096/web/"'
+            - wait_template: "{{ states(player) not in ['unavailable','unknown'] }}"
+              timeout: "00:00:30"
+              continue_on_timeout: true
+      - variables:
+          ok: "{{ states(player) not in ['unavailable','unknown'] }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_a4happy20_s_iphone_7        # your mobile device to send a notification
+            data:
+              message: "Jellyfin: browser session never came online."
+      - delay: "00:00:03"
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+```
+
+<br>
 
 ### 4. Handle the device-readiness scripts (important)
 
@@ -143,13 +218,23 @@ Assistant.
    started after 30s — sends a fallback notification.
 
 
+<br>
 
-#### jellyfin-media-card
+## Using it with the jellyfin-media-card
+
+Once `script.jellyfin_play_episode_custom_card` exists, add the sensor entity to the card in the dashboard:
+
 ```yaml
 type: custom:jellyfin-media-card
-entity: sensor.jellyfin_recent_card_data
 play_script: script.jellyfin_play_episode_custom_card
 ```
+
+<br>
+
+Full card options are documented in the
+[Jellyfin Media Card README](https://github.com/a4happy20/jellyfin-media-card).
+
+<br>
 
 ## License
 
