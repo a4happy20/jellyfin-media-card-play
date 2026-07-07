@@ -14,6 +14,16 @@ Companion repos:
 - [jellyfin-media-card](https://github.com/a4happy20/jellyfin-media-card) — the Lovelace card
 - [jellyfin-media-card-sensors](https://github.com/a4happy20/jellyfin-media-card-sensors) — the data backend
 
+<br>
+
+## Requirements:
+
+[Jellyfin integration](https://www.home-assistant.io/integrations/jellyfin)
+
+The integration will provide the media player/s that we can use to send the media to.
+
+<br>
+
 ## The `play_script`
 
 The card's `play_script` option should point at:
@@ -22,14 +32,9 @@ The card's `play_script` option should point at:
 script.jellyfin_play_episode_custom_card
 ```
 
-When you tap an item, the card calls that script with the item's ID as `episode_id`. So in
-your card config:
+When you tap an item, the card calls that script with the item's ID as `episode_id`.
 
-```yaml
-type: custom:jellyfin-media-card
-entity: sensor.jellyfin_recent_card_data
-play_script: script.jellyfin_play_episode_custom_card
-```
+<br>
 
 ## What it creates
 
@@ -43,19 +48,58 @@ play_script: script.jellyfin_play_episode_custom_card
 
 ## Setup
 
-### 1. Enable packages (once)
+<br>
 
-In `configuration.yaml`:
+### Simple setup
+High level overview:
+
+    • add the package to home assistant
+    • adapt the script to your setup
+
+<br>
+
+## 0. Enable packages (Optional)
+<details>
+  <summary>Package Setup</summary>
+
+<br>
+
+  > See the official docs: **[Configuration packages — Home Assistant](https://www.home-assistant.io/docs/configuration/packages/)**.
+
+<br>
+
+In your `configuration.yaml`, tell Home Assistant to load a `packages` folder:
 
 ```yaml
 homeassistant:
   packages: !include_dir_named packages
 ```
 
-### 2. Add the package file(s)
+Be sure to create the packages folder `config/packages/jellyfin_play_episode_custom_card.yaml`
+(If you already have a `homeassistant:` block, just add the `packages:` line under it.)
+Alternatively, include this one file directly:
 
-Copy `jellyfin_play.yaml` into your `config/packages/` folder. If you want the package to
+```yaml
+homeassistant:
+  packages:
+    jellyfin_play_episode_custom_card: !include jellyfin_play_episode_custom_card.yaml
+```
+
+</details>
+
+<br>
+
+## 1. Add the package file
+
+Copy `jellyfin_play_episode_custom_card.yaml` into your `config/packages/jellyfin_play_episode_custom_card.yaml` folder.
+
+> You don't need to setup packages if you don't want to.
+> Instead you would just put the REST sensors and Template sensors
+> where they belong in your setup.
+
 load and play out of the box, also copy `device_readiness_stubs.yaml` (see below).
+
+<br>
 
 ### 3. Adapt it to your setup
 
@@ -97,6 +141,15 @@ Assistant.
 3. If ready, `jellyfin_play_episode` runs `media_player.play_media` for the episode, waits,
    sets the volume from `input_number.jellyfin_volume`, and — if playback still hasn't
    started after 30s — sends a fallback notification.
+
+
+
+#### jellyfin-media-card
+```yaml
+type: custom:jellyfin-media-card
+entity: sensor.jellyfin_recent_card_data
+play_script: script.jellyfin_play_episode_custom_card
+```
 
 ## License
 
