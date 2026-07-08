@@ -7,7 +7,6 @@ input_select:
     name: Jellyfin Media Player
     options:
       - "media_player.jellyfin_brave"
-      - "media_player.jellyfin_samsung_smart_tv"
     # add more players here as options
 
 
@@ -30,48 +29,6 @@ input_number:
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 
 script:
-
-# ==============================================================================
-# Here we check if the media player is ready.
-# If not ready we start it. Then we wait until it's ready.
-# If already ready, we continue.
-# We also do different things depending on the selected/specified media player.
-# ==============================================================================
-
-  jellyfin_ensure_player:
-    alias: "Jellyfin Ensure Player"
-    sequence:
-      - variables:
-          player: "{{ states('input_select.jellyfin_media_player') }}"
-      - choose:
-          - conditions: "{{ player == 'media_player.jellyfin_brave' }}"
-            sequence:
-              - action: script.ensure_pc_is_on
-                response_variable: pc
-              - action: script.ensure_speakers_are_on
-              - action: script.jellyfin_open_browser
-                response_variable: br
-              - action: script.ensure_pc_player_is_on
-                response_variable: pc_player
-              - variables:
-                  result:
-                    ready: "{{ (pc.ready | default(false)) and (br.ready | default(false)) and (pc_player.ready | default(false)) }}"
-          - conditions: "{{ player == 'media_player.jellyfin_samsung_smart_tv' }}"
-            sequence:
-              - action: script.turn_on_samsung_tv
-                response_variable: tv
-              - action: script.samsung_tv_launch_jellyfin
-                response_variable: jf
-              - variables:
-                  result:
-                    ready: "{{ (tv.ready | default(false)) and (jf.ready | default(false)) }}"
-        default:
-          - variables:
-              result:
-                ready: false
-      - stop: "done"
-        response_variable: result
-
 
 # ============================================================
 # --- Play an episode by id ---

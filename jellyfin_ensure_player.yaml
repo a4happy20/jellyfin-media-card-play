@@ -1,0 +1,103 @@
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------------SCRIPTS--------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+script:
+# ==============================================================================
+# Here we check if the media player is ready.
+# If not ready we start it. Then we wait until it's ready.
+# If already ready, we continue.
+# ==============================================================================
+
+  jellyfin_ensure_player:
+    alias: "Jellyfin Ensure Player"
+    sequence:
+      - variables:
+          player: "{{ states('input_select.jellyfin_media_player') }}"
+      - choose:
+          - conditions: "{{ player == 'media_player.jellyfin_brave' }}"
+            sequence:
+              - action: script.ensure_pc_is_on
+                response_variable: pc
+              - action: script.jellyfin_open_browser
+                response_variable: br
+              - variables:
+                  result:
+                    ready: "{{ (pc.ready | default(false)) and (br.ready | default(false)) }}"
+
+        default:
+          - variables:
+              result:
+                ready: false
+      - stop: "done"
+        response_variable: result
+
+
+  # --- Ensure the PC is powered on ---
+  ensure_pc_is_on:
+    alias: "Ensure PC is On"
+    mode: parallel
+    max: 10
+    sequence:
+      - if:
+          - condition: state
+            entity_id: switch.my_computer
+            state: "off"
+        then:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.my_computer
+          - wait_template: "{{ is_state('switch.my_computer','on') }}"
+            timeout: "00:05:00"
+            continue_on_timeout: true
+      - variables:
+          ok: "{{ is_state('switch.my_computer','on') }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_YOUR_PHONE
+            data:
+              message: "PC didn't turn on in time."
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
+
+
+  # --- Open Browser to Jellyfin and wait for the session ---
+  jellyfin_open_browser:
+    alias: "Ensure Jellyfin Open in Browser"
+    sequence:
+      - variables:
+          player: "{{ states('input_select.jellyfin_media_player') }}"
+      - repeat:
+          while:
+            - condition: template
+              value_template: "{{ states(player) in ['unavailable','unknown'] }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 3 }}"
+          sequence:
+            - action: mqtt.publish
+              data:
+                topic: "HASS.Agent CustomCommand button topic"
+                payload: 'cmd /c start "" "http://YOUR_JELLYFIN_HOST:8096/web/"'
+            - wait_template: "{{ states(player) not in ['unavailable','unknown'] }}"
+              timeout: "00:00:30"
+              continue_on_timeout: true
+      - variables:
+          ok: "{{ states(player) not in ['unavailable','unknown'] }}"
+      - if:
+          - condition: template
+            value_template: "{{ not ok }}"
+        then:
+          - action: notify.mobile_app_YOUR_PHONE
+            data:
+              message: "Jellyfin: browser session never came online."
+      - delay: "00:00:03"
+      - variables:
+          result:
+            ready: "{{ ok }}"
+      - stop: "done"
+        response_variable: result
