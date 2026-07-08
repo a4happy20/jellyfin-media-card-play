@@ -328,4 +328,4 @@ the check points to, and make sure you're using spaces (not tabs).
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE)
+Licensed under the [GNU General Public License v3.0](LICENSE).
