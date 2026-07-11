@@ -39,7 +39,6 @@ handled by a small readiness script you provide — and a working example is inc
   - [Step 5 — Check config & restart](#step-5--check-config--restart)
 - [How playback works](#how-playback-works)
 - [Troubleshooting](#troubleshooting)
-- [License](#license)
 
 <br>
 
