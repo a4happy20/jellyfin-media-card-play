@@ -38,15 +38,21 @@ script:
     fields:
       episode_id:
         required: true
+      media_type:
+        description: "episode or movie. Defaults to episode."
+        required: false
+      resume_seconds:
+        description: "Seek here after start. 0 = from beginning."
+        required: false
       entity_id:
-        description: "Target media player. Defaults to the dropdown."
         required: false
       volume:
-        description: "Volume 0-100. Defaults to the slider."
         required: false
     sequence:
       - variables:
           player: "{{ entity_id if entity_id is defined and entity_id else states('input_select.jellyfin_media_player') }}"
+          mtype: "{{ media_type if media_type is defined and media_type else 'episode' }}"
+          resume: "{{ (resume_seconds | default(0)) | int(0) }}"
           vol: >-
             {{ (volume if volume is defined and volume is not none
                 else states('input_number.jellyfin_volume')) | float(0) }}
@@ -56,8 +62,17 @@ script:
           entity_id: "{{ player }}"
         data:
           media_content_id: "{{ episode_id }}"
-          media_content_type: episode
+          media_content_type: "{{ mtype }}"
       - delay: "00:00:05"
+      - if:
+          - condition: template
+            value_template: "{{ resume > 0 }}"
+        then:
+          - action: media_player.media_seek
+            target:
+              entity_id: "{{ player }}"
+            data:
+              seek_position: "{{ resume }}"
       - action: media_player.volume_set
         target:
           entity_id: "{{ player }}"
@@ -93,3 +108,5 @@ script:
       - action: script.jellyfin_play_episode
         data:
           episode_id: "{{ episode_id }}"
+          media_type: "{{ media_type | default('episode') }}"
+          resume_seconds: "{{ resume_seconds | default(0) }}"
